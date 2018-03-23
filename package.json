@@ -19,7 +19,7 @@
     "jquery": ">=1.7"
   },
   "devDependencies": {
-    "ejs": "~1.0.0",
+    "ejs": "~2.5.5",
     "grunt": "~0.4.5",
     "grunt-bump": "0.0.15",
     "grunt-contrib-jasmine": "^1.0.0",
