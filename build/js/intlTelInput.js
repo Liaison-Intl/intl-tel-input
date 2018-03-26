@@ -217,6 +217,11 @@
                 "role": "combobox"
             });
             selectedFlag.appendTo(this.flagsContainer);
+            this.comboboxTextField = $("<input>", {
+                "type": "text",
+                "tabindex": "-1",
+                "style": "visibility: hidden;width: 100%; padding-left: 0;"
+            }).appendTo(selectedFlag);
             this.selectedFlagInner = $("<div>", {
                 "class": "iti-flag"
             }).appendTo(selectedFlag);
