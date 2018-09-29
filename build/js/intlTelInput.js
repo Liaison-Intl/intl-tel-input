@@ -212,35 +212,40 @@
                 "class": "flag-container"
             }).insertBefore(this.telInput);
             // currently selected flag (displayed to left of input)
-            var selectedFlag = $("<div>", {
+            this.selectedFlag = $("<div>", {
                 "class": "selected-flag",
-                "role": "combobox"
+                "role": "combobox",
+                "aria-owns": "countryFlagList",
+                "aria-haspopup": "listbox",
+                "aria-expanded": false
             });
-            selectedFlag.appendTo(this.flagsContainer);
+            this.selectedFlag.appendTo(this.flagsContainer);
             this.comboboxTextField = $("<input>", {
                 "type": "text",
                 "tabindex": "-1",
                 "style": "visibility: hidden;width: 100%; padding-left: 0;"
-            }).appendTo(selectedFlag);
+            }).appendTo(this.selectedFlag);
             this.selectedFlagInner = $("<div>", {
                 "class": "iti-flag"
-            }).appendTo(selectedFlag);
+            }).appendTo(this.selectedFlag);
             if (this.options.separateDialCode) {
                 this.selectedDialCode = $("<div>", {
                     "class": "selected-dial-code"
-                }).appendTo(selectedFlag);
+                }).appendTo(this.selectedFlag);
             }
             if (this.options.allowDropdown) {
                 // make element focusable and tab naviagable
-                selectedFlag.attr("tabindex", "0");
+                this.selectedFlag.attr("tabindex", "0");
                 // CSS triangle
                 $("<div>", {
                     "class": "iti-arrow"
-                }).appendTo(selectedFlag);
+                }).appendTo(this.selectedFlag);
                 // country dropdown: preferred countries, then divider, then all countries
                 this.countryList = $("<ul>", {
                     "class": "country-list hide",
-                    "role": "listbox"
+                    "role": "listbox",
+                    "id": "countryFlagList",
+                    "tabindex": "-1"
                 });
                 if (this.preferredCountries.length) {
                     this._appendListItems(this.preferredCountries, "preferred");
@@ -273,7 +278,7 @@
             for (var i = 0; i < countries.length; i++) {
                 var c = countries[i];
                 // open the list item
-                tmp += "<li class='country " + className + "' data-dial-code='" + c.dialCode + "' data-country-code='" + c.iso2 + "' role='option'>";
+                tmp += "<li class='country " + className + "' data-dial-code='" + c.dialCode + "' data-country-code='" + c.iso2 + "' role='option' id='country-" + c.iso2 + "'>";
                 // add the flag
                 tmp += "<div class='flag-box'><div class='iti-flag " + c.iso2 + "'></div></div>";
                 // and the country name and dial code
@@ -343,8 +348,8 @@
                 });
             }
             // toggle country dropdown on click
-            var selectedFlag = this.selectedFlagInner.parent();
-            selectedFlag.on("click" + this.ns, function(e) {
+            // var selectedFlag = this.selectedFlagInner.parent();
+            this.selectedFlag.on("click" + this.ns, function(e) {
                 // only intercept this event if we're opening the dropdown
                 // else let it bubble up to the top ("click-off-to-close" listener)
                 // we cannot just stopPropagation as it may be needed to close another instance
@@ -508,6 +513,7 @@
         },
         // show the dropdown
         _showDropdown: function() {
+            this.selectedFlag.attr("aria-expanded", true);
             this._setDropdownPosition();
             // update highlighting and scroll to active list item
             var activeListItem = this.countryList.children(".active");
@@ -528,7 +534,6 @@
             }
             // show the menu and grab the dropdown height
             this.dropdownHeight = this.countryList.removeClass("hide").outerHeight();
-            this.countryList.attr("aria-expanded", true);
             if (!this.isMobile) {
                 var pos = this.telInput.offset(), inputTop = pos.top, windowTop = $(window).scrollTop(), // dropdownFitsBelow = (dropdownBottom < windowBottom)
                 dropdownFitsBelow = inputTop + this.telInput.outerHeight() + this.dropdownHeight < windowTop + $(window).height(), dropdownFitsAbove = inputTop - this.dropdownHeight > windowTop;
@@ -703,6 +708,7 @@
             });
             listItem.addClass("highlight");
             listItem.attr("aria-selected", true);
+            this.selectedFlag.attr("aria-activedescendant", listItem.attr("id"));
         },
         // find the country data for the given country code
         // the ignoreOnlyCountriesOption is only used during init() while parsing the onlyCountries array
@@ -771,6 +777,7 @@
             // update selected flag and active list item
             this._setFlag(listItem.attr("data-country-code"));
             this._closeDropdown();
+            this.selectedFlag.attr("aria-activedescendant", listItem.attr("id"));
             this._updateDialCode(listItem.attr("data-dial-code"), true);
             // focus the input
             this.telInput.focus();
@@ -783,7 +790,7 @@
         // close the dropdown and unbind any listeners
         _closeDropdown: function() {
             this.countryList.addClass("hide");
-            this.countryList.attr("aria-expanded", false);
+            this.selectedFlag.attr("aria-expanded", false);
             // update the arrow
             this.selectedFlagInner.children(".iti-arrow").removeClass("up");
             // unbind key events
