@@ -215,7 +215,7 @@
             this.selectedFlag = $("<div>", {
                 "class": "selected-flag",
                 "role": "combobox",
-                "aria-owns": "countryFlagList",
+                "aria-owns": this.ns + ".countryFlagList",
                 "aria-haspopup": "listbox",
                 "aria-expanded": false
             });
@@ -244,7 +244,7 @@
                 this.countryList = $("<ul>", {
                     "class": "country-list hide",
                     "role": "listbox",
-                    "id": "countryFlagList",
+                    "id": this.ns + ".countryFlagList",
                     "tabindex": "-1"
                 });
                 if (this.preferredCountries.length) {
@@ -278,7 +278,7 @@
             for (var i = 0; i < countries.length; i++) {
                 var c = countries[i];
                 // open the list item
-                tmp += "<li class='country " + className + "' data-dial-code='" + c.dialCode + "' data-country-code='" + c.iso2 + "' role='option' id='country-" + c.iso2 + "'>";
+                tmp += "<li class='country " + className + "' data-dial-code='" + c.dialCode + "' data-country-code='" + c.iso2 + "' role='option' id='" + this.ns + ".country-" + c.iso2 + "'>";
                 // add the flag
                 tmp += "<div class='flag-box'><div class='iti-flag " + c.iso2 + "'></div></div>";
                 // and the country name and dial code
