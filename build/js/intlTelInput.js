@@ -249,7 +249,7 @@
                 });
                 if (this.preferredCountries.length) {
                     this._appendListItems(this.preferredCountries, "preferred");
-                    $("<li>", {
+                    $("<div>", {
                         "class": "divider"
                     }).appendTo(this.countryList);
                 }
