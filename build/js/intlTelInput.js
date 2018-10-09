@@ -48,7 +48,9 @@
         // display the country dial code next to the selected flag so it's not part of the typed number
         separateDialCode: false,
         // specify the path to the libphonenumber script to enable validation/formatting
-        utilsScript: ""
+        utilsScript: "",
+        // prevent duplicate preferred countries showing duplicate at the bottom countries list
+        preventDuplicatepreferredCountries: true
     }, keys = {
         UP: 38,
         DOWN: 40,
@@ -143,29 +145,36 @@
                 countryArray[i] = countryArray[i].toLowerCase();
             }
             // build instance country array
-            this.countries = [];
+            var countries = [];
             for (i = 0; i < allCountries.length; i++) {
                 if (processFunc($.inArray(allCountries[i].iso2, countryArray))) {
-                    this.countries.push(allCountries[i]);
+                    countries.push(allCountries[i]);
                 }
             }
+            return countries;
         },
         // process onlyCountries or excludeCountries array if present
         _processAllCountries: function() {
             if (this.options.onlyCountries.length) {
                 // process onlyCountries option
-                this._filterCountries(this.options.onlyCountries, function(inArray) {
+                this.countries = this._filterCountries(this.options.onlyCountries, function(inArray) {
                     // if country is in array
                     return inArray != -1;
                 });
             } else if (this.options.excludeCountries.length) {
                 // process excludeCountries option
-                this._filterCountries(this.options.excludeCountries, function(inArray) {
+                this.countries = _filterCountries(this.options.excludeCountries, function(inArray) {
                     // if country is not in array
                     return inArray == -1;
                 });
             } else {
                 this.countries = allCountries;
+            }
+            if (this.options.preventDuplicatepreferredCountries) {
+                this.noDuplicateCountries = this._filterCountries(this.options.preferredCountries, function(inArray) {
+                    // if country is not in array
+                    return inArray == -1;
+                });
             }
         },
         // process the countryCodes map
@@ -196,7 +205,6 @@
         // generate all of the markup for the plugin: the selected flag overlay, and the dropdown
         _generateMarkup: function() {
             // prevent autocomplete as there's no safe, cross-browser event we can react to, so it can easily put the plugin in an inconsistent state e.g. the wrong flag selected for the autocompleted number, which on submit could mean the wrong number is saved (esp in nationalMode)
-            this.telInput.attr("autocomplete", "off");
             // containers (mostly for positioning)
             var parentClass = "intl-tel-input";
             if (this.options.allowDropdown) {
@@ -253,7 +261,11 @@
                         "class": "divider"
                     }).appendTo(this.countryList);
                 }
-                this._appendListItems(this.countries, "");
+                if (this.options.preventDuplicatepreferredCountries) {
+                    this._appendListItems(this.noDuplicateCountries, "");
+                } else {
+                    this._appendListItems(this.countries, "");
+                }
                 // this is useful in lots of places
                 this.countryListItems = this.countryList.children(".country");
                 // create dropdownContainer markup
