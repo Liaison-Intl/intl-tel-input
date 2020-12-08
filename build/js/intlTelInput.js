@@ -48,9 +48,7 @@
         // display the country dial code next to the selected flag so it's not part of the typed number
         separateDialCode: false,
         // specify the path to the libphonenumber script to enable validation/formatting
-        utilsScript: "",
-        // prevent duplicate preferred countries showing duplicate at the bottom countries list
-        preventDuplicatepreferredCountries: true
+        utilsScript: ""
     }, keys = {
         UP: 38,
         DOWN: 40,
@@ -61,7 +59,8 @@
         Z: 90,
         SPACE: 32,
         TAB: 9
-    };
+    }, // https://en.wikipedia.org/wiki/List_of_North_American_Numbering_Plan_area_codes#Non-geographic_area_codes
+    regionlessNanpNumbers = [ "800", "822", "833", "844", "855", "866", "877", "880", "881", "882", "883", "884", "885", "886", "887", "888", "889" ];
     // keep track of if the window.load event has fired as impossible to check after the fact
     $(window).load(function() {
         // UPDATE: use a public static field so we can fudge it in the tests
@@ -104,6 +103,9 @@
             // Note: again, jasmine breaks when I put these in the Plugin function
             this.autoCountryDeferred = new $.Deferred();
             this.utilsScriptDeferred = new $.Deferred();
+            // in various situations there could be no country selected initially, but we need to be able
+            // to assume this variable exists
+            this.selectedCountryData = {};
             // process all the data: onlyCountries, excludeCountries, preferredCountries etc
             this._processCountryData();
             // generate the markup
@@ -145,36 +147,29 @@
                 countryArray[i] = countryArray[i].toLowerCase();
             }
             // build instance country array
-            var countries = [];
+            this.countries = [];
             for (i = 0; i < allCountries.length; i++) {
                 if (processFunc($.inArray(allCountries[i].iso2, countryArray))) {
-                    countries.push(allCountries[i]);
+                    this.countries.push(allCountries[i]);
                 }
             }
-            return countries;
         },
         // process onlyCountries or excludeCountries array if present
         _processAllCountries: function() {
             if (this.options.onlyCountries.length) {
                 // process onlyCountries option
-                this.countries = this._filterCountries(this.options.onlyCountries, function(inArray) {
+                this._filterCountries(this.options.onlyCountries, function(inArray) {
                     // if country is in array
                     return inArray != -1;
                 });
             } else if (this.options.excludeCountries.length) {
                 // process excludeCountries option
-                this.countries = _filterCountries(this.options.excludeCountries, function(inArray) {
+                this._filterCountries(this.options.excludeCountries, function(inArray) {
                     // if country is not in array
                     return inArray == -1;
                 });
             } else {
                 this.countries = allCountries;
-            }
-            if (this.options.preventDuplicatepreferredCountries) {
-                this.noDuplicateCountries = this._filterCountries(this.options.preferredCountries, function(inArray) {
-                    // if country is not in array
-                    return inArray == -1;
-                });
             }
         },
         // process the countryCodes map
@@ -205,6 +200,7 @@
         // generate all of the markup for the plugin: the selected flag overlay, and the dropdown
         _generateMarkup: function() {
             // prevent autocomplete as there's no safe, cross-browser event we can react to, so it can easily put the plugin in an inconsistent state e.g. the wrong flag selected for the autocompleted number, which on submit could mean the wrong number is saved (esp in nationalMode)
+            this.telInput.attr("autocomplete", "off");
             // containers (mostly for positioning)
             var parentClass = "intl-tel-input";
             if (this.options.allowDropdown) {
@@ -214,64 +210,48 @@
                 parentClass += " separate-dial-code";
             }
             this.telInput.wrap($("<div>", {
-                "class": parentClass
+                class: parentClass
             }));
             this.flagsContainer = $("<div>", {
-                "class": "flag-container"
+                class: "flag-container"
             }).insertBefore(this.telInput);
             // currently selected flag (displayed to left of input)
-            this.selectedFlag = $("<div>", {
-                "class": "selected-flag",
-                "role": "combobox",
-                "aria-owns": this.ns + ".countryFlagList",
-                "aria-haspopup": "listbox",
-                "aria-expanded": false
+            var selectedFlag = $("<div>", {
+                class: "selected-flag"
             });
-            this.selectedFlag.appendTo(this.flagsContainer);
-            this.comboboxTextField = $("<input>", {
-                "type": "text",
-                "tabindex": "-1",
-                "style": "visibility: hidden;width: 100%; padding-left: 0;"
-            }).appendTo(this.selectedFlag);
+            selectedFlag.appendTo(this.flagsContainer);
             this.selectedFlagInner = $("<div>", {
-                "class": "iti-flag"
-            }).appendTo(this.selectedFlag);
+                class: "iti-flag"
+            }).appendTo(selectedFlag);
             if (this.options.separateDialCode) {
                 this.selectedDialCode = $("<div>", {
-                    "class": "selected-dial-code"
-                }).appendTo(this.selectedFlag);
+                    class: "selected-dial-code"
+                }).appendTo(selectedFlag);
             }
             if (this.options.allowDropdown) {
                 // make element focusable and tab naviagable
-                this.selectedFlag.attr("tabindex", "0");
+                selectedFlag.attr("tabindex", "0");
                 // CSS triangle
                 $("<div>", {
-                    "class": "iti-arrow"
-                }).appendTo(this.selectedFlag);
+                    class: "iti-arrow"
+                }).appendTo(selectedFlag);
                 // country dropdown: preferred countries, then divider, then all countries
                 this.countryList = $("<ul>", {
-                    "class": "country-list hide",
-                    "role": "listbox",
-                    "id": this.ns + ".countryFlagList",
-                    "tabindex": "-1"
+                    class: "country-list hide"
                 });
                 if (this.preferredCountries.length) {
                     this._appendListItems(this.preferredCountries, "preferred");
-                    $("<div>", {
-                        "class": "divider"
+                    $("<li>", {
+                        class: "divider"
                     }).appendTo(this.countryList);
                 }
-                if (this.options.preventDuplicatepreferredCountries) {
-                    this._appendListItems(this.noDuplicateCountries, "");
-                } else {
-                    this._appendListItems(this.countries, "");
-                }
+                this._appendListItems(this.countries, "");
                 // this is useful in lots of places
                 this.countryListItems = this.countryList.children(".country");
                 // create dropdownContainer markup
                 if (this.options.dropdownContainer) {
                     this.dropdown = $("<div>", {
-                        "class": "intl-tel-input iti-container"
+                        class: "intl-tel-input iti-container"
                     }).append(this.countryList);
                 } else {
                     this.countryList.appendTo(this.flagsContainer);
@@ -290,7 +270,7 @@
             for (var i = 0; i < countries.length; i++) {
                 var c = countries[i];
                 // open the list item
-                tmp += "<li class='country " + className + "' data-dial-code='" + c.dialCode + "' data-country-code='" + c.iso2 + "' role='option' id='" + this.ns + ".country-" + c.iso2 + "'>";
+                tmp += "<li class='country " + className + "' data-dial-code='" + c.dialCode + "' data-country-code='" + c.iso2 + "'>";
                 // add the flag
                 tmp += "<div class='flag-box'><div class='iti-flag " + c.iso2 + "'></div></div>";
                 // and the country name and dial code
@@ -360,8 +340,8 @@
                 });
             }
             // toggle country dropdown on click
-            // var selectedFlag = this.selectedFlagInner.parent();
-            this.selectedFlag.on("click" + this.ns, function(e) {
+            var selectedFlag = this.selectedFlagInner.parent();
+            selectedFlag.on("click" + this.ns, function(e) {
                 // only intercept this event if we're opening the dropdown
                 // else let it bubble up to the top ("click-off-to-close" listener)
                 // we cannot just stopPropagation as it may be needed to close another instance
@@ -525,7 +505,6 @@
         },
         // show the dropdown
         _showDropdown: function() {
-            this.selectedFlag.attr("aria-expanded", true);
             this._setDropdownPosition();
             // update highlighting and scroll to active list item
             var activeListItem = this.countryList.children(".active");
@@ -670,25 +649,51 @@
             number = this._beforeSetNumber(number);
             this.telInput.val(number);
         },
+        _isRegionlessNanp: function(number) {
+            var numeric = this._getNumeric(number);
+            if (numeric.charAt(0) === "1") {
+                var areaCode = numeric.substr(1, 3);
+                return regionlessNanpNumbers.indexOf(areaCode) !== -1;
+            }
+            return false;
+        },
         // check if need to select a new flag based on the given number
         // Note: called from _setInitialState, keyup handler, setNumber
         _updateFlagFromNumber: function(number, isInit) {
-            // if we're in nationalMode and we already have US/Canada selected, make sure the number starts with a +1 so _getDialCode will be able to extract the area code
-            // update: if we dont yet have selectedCountryData, but we're here (trying to update the flag from the number), that means we're initialising the plugin with a number that already has a dial code, so fine to ignore this bit
-            if (number && this.options.nationalMode && this.selectedCountryData && this.selectedCountryData.dialCode == "1" && number.charAt(0) != "+") {
-                if (number.charAt(0) != "1") {
-                    number = "1" + number;
-                }
-                number = "+" + number;
+            // if we're in nationalMode and we already have US/Canada selected, make sure the number starts
+            // with a +1 so _getDialCode will be able to extract the area code
+            // update: if we dont yet have selectedCountryData, but we're here (trying to update the flag
+            // from the number), that means we're initialising the plugin with a number that already has a
+            // dial code, so fine to ignore this bit
+            var selectedDialCode = this.selectedCountryData.dialCode;
+            var isNanp = selectedDialCode === "1";
+            if (number && this.options.nationalMode && isNanp && number.charAt(0) !== "+") {
+                if (number.charAt(0) !== "1") number = "1".concat(number);
+                number = "+".concat(number);
+            }
+            // update flag if user types area code for another country
+            if (this.options.separateDialCode && selectedDialCode && number.charAt(0) !== "+") {
+                number = "+".concat(selectedDialCode).concat(number);
             }
             // try and extract valid dial code from input
-            var dialCode = this._getDialCode(number), countryCode = null;
+            var dialCode = this._getDialCode(number);
+            var numeric = this._getNumeric(number);
+            var countryCode = null;
             if (dialCode) {
-                // check if one of the matching countries is already selected
-                var countryCodes = this.countryCodes[this._getNumeric(dialCode)], alreadySelected = this.selectedCountryData && $.inArray(this.selectedCountryData.iso2, countryCodes) != -1;
-                // if a matching country is not already selected (or this is an unknown NANP area code): choose the first in the list
-                if (!alreadySelected || this._isUnknownNanp(number, dialCode)) {
-                    // if using onlyCountries option, countryCodes[0] may be empty, so we must find the first non-empty index
+                var countryCodes = this.countryCodes[this._getNumeric(dialCode)];
+                // check if the right country is already selected. this should be false if the number is
+                // longer than the matched dial code because in this case we need to make sure that if
+                // there are multiple country matches, that the first one is selected (note: we could
+                // just check that here, but it requires the same loop that we already have later)
+                var alreadySelected = countryCodes.indexOf(this.selectedCountryData.iso2) !== -1 && numeric.length <= dialCode.length - 1;
+                var isRegionlessNanpNumber = selectedDialCode === "1" && this._isRegionlessNanp(numeric);
+                // only update the flag if:
+                // A) NOT (we currently have a NANP flag selected, and the number is a regionlessNanp)
+                // AND
+                // B) the right country is not already selected
+                if (!isRegionlessNanpNumber && !alreadySelected) {
+                    // if using onlyCountries option, countryCodes[0] may be empty, so we must find the first
+                    // non-empty index
                     for (var j = 0; j < countryCodes.length; j++) {
                         if (countryCodes[j]) {
                             countryCode = countryCodes[j];
@@ -714,13 +719,8 @@
         },
         // remove highlighting from other list items and highlight the given item
         _highlightListItem: function(listItem) {
-            this.countryListItems.each(function(){
-                $(this).removeClass("highlight");
-                this.removeAttribute("aria-selected");
-            });
+            this.countryListItems.removeClass("highlight");
             listItem.addClass("highlight");
-            listItem.attr("aria-selected", true);
-            this.selectedFlag.attr("aria-activedescendant", listItem.attr("id"));
         },
         // find the country data for the given country code
         // the ignoreOnlyCountriesOption is only used during init() while parsing the onlyCountries array
@@ -789,7 +789,6 @@
             // update selected flag and active list item
             this._setFlag(listItem.attr("data-country-code"));
             this._closeDropdown();
-            this.selectedFlag.attr("aria-activedescendant", listItem.attr("id"));
             this._updateDialCode(listItem.attr("data-dial-code"), true);
             // focus the input
             this.telInput.focus();
@@ -802,7 +801,6 @@
         // close the dropdown and unbind any listeners
         _closeDropdown: function() {
             this.countryList.addClass("hide");
-            this.selectedFlag.attr("aria-expanded", false);
             // update the arrow
             this.selectedFlagInner.children(".iti-arrow").removeClass("up");
             // unbind key events
@@ -1102,45 +1100,22 @@
     };
     // version
     $.fn[pluginName].version = "8.5.2";
-    // Tell JSHint to ignore this warning: "character may get silently deleted by one or more browsers"
-    // jshint -W100
     // Array of country objects for the flag dropdown.
-    // Each contains a name, country code (ISO 3166-1 alpha-2) and dial code.
-    // Originally from https://github.com/mledoze/countries
-    // then with a couple of manual re-arrangements to be alphabetical
-    // then changed Kazakhstan from +76 to +7
-    // and Vatican City from +379 to +39 (see issue 50)
-    // and Caribean Netherlands from +5997 to +599
-    // and Curacao from +5999 to +599
-    // Removed:  Kosovo, Pitcairn Islands, South Georgia
-    // UPDATE Sept 12th 2015
-    // List of regions that have iso2 country codes, which I have chosen to omit:
-    // (based on this information: https://en.wikipedia.org/wiki/List_of_country_calling_codes)
-    // AQ - Antarctica - all different country codes depending on which "base"
-    // BV - Bouvet Island - no calling code
-    // GS - South Georgia and the South Sandwich Islands - "inhospitable collection of islands" - same flag and calling code as Falkland Islands
-    // HM - Heard Island and McDonald Islands - no calling code
-    // PN - Pitcairn - tiny population (56), same calling code as New Zealand
-    // TF - French Southern Territories - no calling code
-    // UM - United States Minor Outlying Islands - no calling code
-    // UPDATE the criteria of supported countries or territories (see issue 297)
-    // Have an iso2 code: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
-    // Have a country calling code: https://en.wikipedia.org/wiki/List_of_country_calling_codes
-    // Have a flag
-    // Must be supported by libphonenumber: https://github.com/googlei18n/libphonenumber
-    // Update: converted objects to arrays to save bytes!
-    // Update: added "priority" for countries with the same dialCode as others
-    // Update: added array of area codes for countries with the same dialCode as others
-    // So each country array has the following information:
+    // Here is the criteria for the plugin to support a given country/territory
+    // - It has an iso2 code: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
+    // - It has it's own country calling code (it is not a sub-region of another country): https://en.wikipedia.org/wiki/List_of_country_calling_codes
+    // - It has a flag in the region-flags project: https://github.com/behdad/region-flags/tree/gh-pages/png
+    // - It is supported by libphonenumber (it must be listed on this page): https://github.com/googlei18n/libphonenumber/blob/master/resources/ShortNumberMetadata.xml
+    // Each country array has the following information:
     // [
     //    Country name,
     //    iso2 code,
     //    International dial code,
     //    Order (if >1 country with same dial code),
-    //    Area codes (if >1 country with same dial code)
+    //    Area codes
     // ]
-    var allCountries = [ [ "Afghanistan (‫افغانستان‬‎)", "af", "93" ], [ "Albania (Shqipëri)", "al", "355" ], [ "Algeria (‫الجزائر‬‎)", "dz", "213" ], [ "American Samoa", "as", "1684" ], [ "Andorra", "ad", "376" ], [ "Angola", "ao", "244" ], [ "Anguilla", "ai", "1264" ], [ "Antigua and Barbuda", "ag", "1268" ], [ "Argentina", "ar", "54" ], [ "Armenia (Հայաստան)", "am", "374" ], [ "Aruba", "aw", "297" ], [ "Australia", "au", "61", 0 ], [ "Austria (Österreich)", "at", "43" ], [ "Azerbaijan (Azərbaycan)", "az", "994" ], [ "Bahamas", "bs", "1242" ], [ "Bahrain (‫البحرين‬‎)", "bh", "973" ], [ "Bangladesh (বাংলাদেশ)", "bd", "880" ], [ "Barbados", "bb", "1246" ], [ "Belarus (Беларусь)", "by", "375" ], [ "Belgium (België)", "be", "32" ], [ "Belize", "bz", "501" ], [ "Benin (Bénin)", "bj", "229" ], [ "Bermuda", "bm", "1441" ], [ "Bhutan (འབྲུག)", "bt", "975" ], [ "Bolivia", "bo", "591" ], [ "Bosnia and Herzegovina (Босна и Херцеговина)", "ba", "387" ], [ "Botswana", "bw", "267" ], [ "Brazil (Brasil)", "br", "55" ], [ "British Indian Ocean Territory", "io", "246" ], [ "British Virgin Islands", "vg", "1284" ], [ "Brunei", "bn", "673" ], [ "Bulgaria (България)", "bg", "359" ], [ "Burkina Faso", "bf", "226" ], [ "Burundi (Uburundi)", "bi", "257" ], [ "Cambodia (កម្ពុជា)", "kh", "855" ], [ "Cameroon (Cameroun)", "cm", "237" ], [ "Canada", "ca", "1", 1, [ "204", "226", "236", "249", "250", "289", "306", "343", "365", "387", "403", "416", "418", "431", "437", "438", "450", "506", "514", "519", "548", "579", "581", "587", "604", "613", "639", "647", "672", "705", "709", "742", "778", "780", "782", "807", "819", "825", "867", "873", "902", "905" ] ], [ "Cape Verde (Kabu Verdi)", "cv", "238" ], [ "Caribbean Netherlands", "bq", "599", 1 ], [ "Cayman Islands", "ky", "1345" ], [ "Central African Republic (République centrafricaine)", "cf", "236" ], [ "Chad (Tchad)", "td", "235" ], [ "Chile", "cl", "56" ], [ "China (中国)", "cn", "86" ], [ "Christmas Island", "cx", "61", 2 ], [ "Cocos (Keeling) Islands", "cc", "61", 1 ], [ "Colombia", "co", "57" ], [ "Comoros (‫جزر القمر‬‎)", "km", "269" ], [ "Congo (DRC) (Jamhuri ya Kidemokrasia ya Kongo)", "cd", "243" ], [ "Congo (Republic) (Congo-Brazzaville)", "cg", "242" ], [ "Cook Islands", "ck", "682" ], [ "Costa Rica", "cr", "506" ], [ "Côte d’Ivoire", "ci", "225" ], [ "Croatia (Hrvatska)", "hr", "385" ], [ "Cuba", "cu", "53" ], [ "Curaçao", "cw", "599", 0 ], [ "Cyprus (Κύπρος)", "cy", "357" ], [ "Czech Republic (Česká republika)", "cz", "420" ], [ "Denmark (Danmark)", "dk", "45" ], [ "Djibouti", "dj", "253" ], [ "Dominica", "dm", "1767" ], [ "Dominican Republic (República Dominicana)", "do", "1", 2, [ "809", "829", "849" ] ], [ "Ecuador", "ec", "593" ], [ "Egypt (‫مصر‬‎)", "eg", "20" ], [ "El Salvador", "sv", "503" ], [ "Equatorial Guinea (Guinea Ecuatorial)", "gq", "240" ], [ "Eritrea", "er", "291" ], [ "Estonia (Eesti)", "ee", "372" ], [ "Ethiopia", "et", "251" ], [ "Falkland Islands (Islas Malvinas)", "fk", "500" ], [ "Faroe Islands (Føroyar)", "fo", "298" ], [ "Fiji", "fj", "679" ], [ "Finland (Suomi)", "fi", "358", 0 ], [ "France", "fr", "33" ], [ "French Guiana (Guyane française)", "gf", "594" ], [ "French Polynesia (Polynésie française)", "pf", "689" ], [ "Gabon", "ga", "241" ], [ "Gambia", "gm", "220" ], [ "Georgia (საქართველო)", "ge", "995" ], [ "Germany (Deutschland)", "de", "49" ], [ "Ghana (Gaana)", "gh", "233" ], [ "Gibraltar", "gi", "350" ], [ "Greece (Ελλάδα)", "gr", "30" ], [ "Greenland (Kalaallit Nunaat)", "gl", "299" ], [ "Grenada", "gd", "1473" ], [ "Guadeloupe", "gp", "590", 0 ], [ "Guam", "gu", "1671" ], [ "Guatemala", "gt", "502" ], [ "Guernsey", "gg", "44", 1 ], [ "Guinea (Guinée)", "gn", "224" ], [ "Guinea-Bissau (Guiné Bissau)", "gw", "245" ], [ "Guyana", "gy", "592" ], [ "Haiti", "ht", "509" ], [ "Honduras", "hn", "504" ], [ "Hong Kong (香港)", "hk", "852" ], [ "Hungary (Magyarország)", "hu", "36" ], [ "Iceland (Ísland)", "is", "354" ], [ "India (भारत)", "in", "91" ], [ "Indonesia", "id", "62" ], [ "Iran (‫ایران‬‎)", "ir", "98" ], [ "Iraq (‫العراق‬‎)", "iq", "964" ], [ "Ireland", "ie", "353" ], [ "Isle of Man", "im", "44", 2 ], [ "Israel (‫ישראל‬‎)", "il", "972" ], [ "Italy (Italia)", "it", "39", 0 ], [ "Jamaica", "jm", "1876" ], [ "Japan (日本)", "jp", "81" ], [ "Jersey", "je", "44", 3 ], [ "Jordan (‫الأردن‬‎)", "jo", "962" ], [ "Kazakhstan (Казахстан)", "kz", "7", 1 ], [ "Kenya", "ke", "254" ], [ "Kiribati", "ki", "686" ], [ "Kuwait (‫الكويت‬‎)", "kw", "965" ], [ "Kyrgyzstan (Кыргызстан)", "kg", "996" ], [ "Laos (ລາວ)", "la", "856" ], [ "Latvia (Latvija)", "lv", "371" ], [ "Lebanon (‫لبنان‬‎)", "lb", "961" ], [ "Lesotho", "ls", "266" ], [ "Liberia", "lr", "231" ], [ "Libya (‫ليبيا‬‎)", "ly", "218" ], [ "Liechtenstein", "li", "423" ], [ "Lithuania (Lietuva)", "lt", "370" ], [ "Luxembourg", "lu", "352" ], [ "Macau (澳門)", "mo", "853" ], [ "Macedonia (FYROM) (Македонија)", "mk", "389" ], [ "Madagascar (Madagasikara)", "mg", "261" ], [ "Malawi", "mw", "265" ], [ "Malaysia", "my", "60" ], [ "Maldives", "mv", "960" ], [ "Mali", "ml", "223" ], [ "Malta", "mt", "356" ], [ "Marshall Islands", "mh", "692" ], [ "Martinique", "mq", "596" ], [ "Mauritania (‫موريتانيا‬‎)", "mr", "222" ], [ "Mauritius (Moris)", "mu", "230" ], [ "Mayotte", "yt", "262", 1 ], [ "Mexico (México)", "mx", "52" ], [ "Micronesia", "fm", "691" ], [ "Moldova (Republica Moldova)", "md", "373" ], [ "Monaco", "mc", "377" ], [ "Mongolia (Монгол)", "mn", "976" ], [ "Montenegro (Crna Gora)", "me", "382" ], [ "Montserrat", "ms", "1664" ], [ "Morocco (‫المغرب‬‎)", "ma", "212", 0 ], [ "Mozambique (Moçambique)", "mz", "258" ], [ "Myanmar (Burma) (မြန်မာ)", "mm", "95" ], [ "Namibia (Namibië)", "na", "264" ], [ "Nauru", "nr", "674" ], [ "Nepal (नेपाल)", "np", "977" ], [ "Netherlands (Nederland)", "nl", "31" ], [ "New Caledonia (Nouvelle-Calédonie)", "nc", "687" ], [ "New Zealand", "nz", "64" ], [ "Nicaragua", "ni", "505" ], [ "Niger (Nijar)", "ne", "227" ], [ "Nigeria", "ng", "234" ], [ "Niue", "nu", "683" ], [ "Norfolk Island", "nf", "672" ], [ "North Korea (조선 민주주의 인민 공화국)", "kp", "850" ], [ "Northern Mariana Islands", "mp", "1670" ], [ "Norway (Norge)", "no", "47", 0 ], [ "Oman (‫عُمان‬‎)", "om", "968" ], [ "Pakistan (‫پاکستان‬‎)", "pk", "92" ], [ "Palau", "pw", "680" ], [ "Palestine (‫فلسطين‬‎)", "ps", "970" ], [ "Panama (Panamá)", "pa", "507" ], [ "Papua New Guinea", "pg", "675" ], [ "Paraguay", "py", "595" ], [ "Peru (Perú)", "pe", "51" ], [ "Philippines", "ph", "63" ], [ "Poland (Polska)", "pl", "48" ], [ "Portugal", "pt", "351" ], [ "Puerto Rico", "pr", "1", 3, [ "787", "939" ] ], [ "Qatar (‫قطر‬‎)", "qa", "974" ], [ "Réunion (La Réunion)", "re", "262", 0 ], [ "Romania (România)", "ro", "40" ], [ "Russia (Россия)", "ru", "7", 0 ], [ "Rwanda", "rw", "250" ], [ "Saint Barthélemy (Saint-Barthélemy)", "bl", "590", 1 ], [ "Saint Helena", "sh", "290" ], [ "Saint Kitts and Nevis", "kn", "1869" ], [ "Saint Lucia", "lc", "1758" ], [ "Saint Martin (Saint-Martin (partie française))", "mf", "590", 2 ], [ "Saint Pierre and Miquelon (Saint-Pierre-et-Miquelon)", "pm", "508" ], [ "Saint Vincent and the Grenadines", "vc", "1784" ], [ "Samoa", "ws", "685" ], [ "San Marino", "sm", "378" ], [ "São Tomé and Príncipe (São Tomé e Príncipe)", "st", "239" ], [ "Saudi Arabia (‫المملكة العربية السعودية‬‎)", "sa", "966" ], [ "Senegal (Sénégal)", "sn", "221" ], [ "Serbia (Србија)", "rs", "381" ], [ "Seychelles", "sc", "248" ], [ "Sierra Leone", "sl", "232" ], [ "Singapore", "sg", "65" ], [ "Sint Maarten", "sx", "1721" ], [ "Slovakia (Slovensko)", "sk", "421" ], [ "Slovenia (Slovenija)", "si", "386" ], [ "Solomon Islands", "sb", "677" ], [ "Somalia (Soomaaliya)", "so", "252" ], [ "South Africa", "za", "27" ], [ "South Korea (대한민국)", "kr", "82" ], [ "South Sudan (‫جنوب السودان‬‎)", "ss", "211" ], [ "Spain (España)", "es", "34" ], [ "Sri Lanka (ශ්‍රී ලංකාව)", "lk", "94" ], [ "Sudan (‫السودان‬‎)", "sd", "249" ], [ "Suriname", "sr", "597" ], [ "Svalbard and Jan Mayen", "sj", "47", 1 ], [ "Swaziland", "sz", "268" ], [ "Sweden (Sverige)", "se", "46" ], [ "Switzerland (Schweiz)", "ch", "41" ], [ "Syria (‫سوريا‬‎)", "sy", "963" ], [ "Taiwan (台灣)", "tw", "886" ], [ "Tajikistan", "tj", "992" ], [ "Tanzania", "tz", "255" ], [ "Thailand (ไทย)", "th", "66" ], [ "Timor-Leste", "tl", "670" ], [ "Togo", "tg", "228" ], [ "Tokelau", "tk", "690" ], [ "Tonga", "to", "676" ], [ "Trinidad and Tobago", "tt", "1868" ], [ "Tunisia (‫تونس‬‎)", "tn", "216" ], [ "Turkey (Türkiye)", "tr", "90" ], [ "Turkmenistan", "tm", "993" ], [ "Turks and Caicos Islands", "tc", "1649" ], [ "Tuvalu", "tv", "688" ], [ "U.S. Virgin Islands", "vi", "1340" ], [ "Uganda", "ug", "256" ], [ "Ukraine (Україна)", "ua", "380" ], [ "United Arab Emirates (‫الإمارات العربية المتحدة‬‎)", "ae", "971" ], [ "United Kingdom", "gb", "44", 0 ], [ "United States", "us", "1", 0 ], [ "Uruguay", "uy", "598" ], [ "Uzbekistan (Oʻzbekiston)", "uz", "998" ], [ "Vanuatu", "vu", "678" ], [ "Vatican City (Città del Vaticano)", "va", "39", 1 ], [ "Venezuela", "ve", "58" ], [ "Vietnam (Việt Nam)", "vn", "84" ], [ "Wallis and Futuna", "wf", "681" ], [ "Western Sahara (‫الصحراء الغربية‬‎)", "eh", "212", 1 ], [ "Yemen (‫اليمن‬‎)", "ye", "967" ], [ "Zambia", "zm", "260" ], [ "Zimbabwe", "zw", "263" ], [ "Åland Islands", "ax", "358", 1 ] ];
-    // loop over all of the countries above
+    var allCountries = [ [ "Afghanistan (‫افغانستان‬‎)", "af", "93" ], [ "Albania (Shqipëri)", "al", "355" ], [ "Algeria (‫الجزائر‬‎)", "dz", "213" ], [ "American Samoa", "as", "1", 5, [ "684" ] ], [ "Andorra", "ad", "376" ], [ "Angola", "ao", "244" ], [ "Anguilla", "ai", "1", 6, [ "264" ] ], [ "Antigua and Barbuda", "ag", "1", 7, [ "268" ] ], [ "Argentina", "ar", "54" ], [ "Armenia (Հայաստան)", "am", "374" ], [ "Aruba", "aw", "297" ], [ "Australia", "au", "61", 0 ], [ "Austria (Österreich)", "at", "43" ], [ "Azerbaijan (Azərbaycan)", "az", "994" ], [ "Bahamas", "bs", "1", 8, [ "242" ] ], [ "Bahrain (‫البحرين‬‎)", "bh", "973" ], [ "Bangladesh (বাংলাদেশ)", "bd", "880" ], [ "Barbados", "bb", "1", 9, [ "246" ] ], [ "Belarus (Беларусь)", "by", "375" ], [ "Belgium (België)", "be", "32" ], [ "Belize", "bz", "501" ], [ "Benin (Bénin)", "bj", "229" ], [ "Bermuda", "bm", "1", 10, [ "441" ] ], [ "Bhutan (འབྲུག)", "bt", "975" ], [ "Bolivia", "bo", "591" ], [ "Bosnia and Herzegovina (Босна и Херцеговина)", "ba", "387" ], [ "Botswana", "bw", "267" ], [ "Brazil (Brasil)", "br", "55" ], [ "British Indian Ocean Territory", "io", "246" ], [ "British Virgin Islands", "vg", "1", 11, [ "284" ] ], [ "Brunei", "bn", "673" ], [ "Bulgaria (България)", "bg", "359" ], [ "Burkina Faso", "bf", "226" ], [ "Burundi (Uburundi)", "bi", "257" ], [ "Cambodia (កម្ពុជា)", "kh", "855" ], [ "Cameroon (Cameroun)", "cm", "237" ], [ "Canada", "ca", "1", 1, [ "204", "226", "236", "249", "250", "289", "306", "343", "365", "387", "403", "416", "418", "431", "437", "438", "450", "506", "514", "519", "548", "579", "581", "587", "604", "613", "639", "647", "672", "705", "709", "742", "778", "780", "782", "807", "819", "825", "867", "873", "902", "905" ] ], [ "Cape Verde (Kabu Verdi)", "cv", "238" ], [ "Caribbean Netherlands", "bq", "599", 1, [ "3", "4", "7" ] ], [ "Cayman Islands", "ky", "1", 12, [ "345" ] ], [ "Central African Republic (République centrafricaine)", "cf", "236" ], [ "Chad (Tchad)", "td", "235" ], [ "Chile", "cl", "56" ], [ "China (中国)", "cn", "86" ], [ "Christmas Island", "cx", "61", 2 ], [ "Cocos (Keeling) Islands", "cc", "61", 1 ], [ "Colombia", "co", "57" ], [ "Comoros (‫جزر القمر‬‎)", "km", "269" ], [ "Congo (DRC) (Jamhuri ya Kidemokrasia ya Kongo)", "cd", "243" ], [ "Congo (Republic) (Congo-Brazzaville)", "cg", "242" ], [ "Cook Islands", "ck", "682" ], [ "Costa Rica", "cr", "506" ], [ "Côte d’Ivoire", "ci", "225" ], [ "Croatia (Hrvatska)", "hr", "385" ], [ "Cuba", "cu", "53" ], [ "Curaçao", "cw", "599", 0 ], [ "Cyprus (Κύπρος)", "cy", "357" ], [ "Czech Republic (Česká republika)", "cz", "420" ], [ "Denmark (Danmark)", "dk", "45" ], [ "Djibouti", "dj", "253" ], [ "Dominica", "dm", "1", 13, [ "767" ] ], [ "Dominican Republic (República Dominicana)", "do", "1", 2, [ "809", "829", "849" ] ], [ "Ecuador", "ec", "593" ], [ "Egypt (‫مصر‬‎)", "eg", "20" ], [ "El Salvador", "sv", "503" ], [ "Equatorial Guinea (Guinea Ecuatorial)", "gq", "240" ], [ "Eritrea", "er", "291" ], [ "Estonia (Eesti)", "ee", "372" ], [ "Ethiopia", "et", "251" ], [ "Falkland Islands (Islas Malvinas)", "fk", "500" ], [ "Faroe Islands (Føroyar)", "fo", "298" ], [ "Fiji", "fj", "679" ], [ "Finland (Suomi)", "fi", "358", 0 ], [ "France", "fr", "33" ], [ "French Guiana (Guyane française)", "gf", "594" ], [ "French Polynesia (Polynésie française)", "pf", "689" ], [ "Gabon", "ga", "241" ], [ "Gambia", "gm", "220" ], [ "Georgia (საქართველო)", "ge", "995" ], [ "Germany (Deutschland)", "de", "49" ], [ "Ghana (Gaana)", "gh", "233" ], [ "Gibraltar", "gi", "350" ], [ "Greece (Ελλάδα)", "gr", "30" ], [ "Greenland (Kalaallit Nunaat)", "gl", "299" ], [ "Grenada", "gd", "1", 14, [ "473" ] ], [ "Guadeloupe", "gp", "590", 0 ], [ "Guam", "gu", "1", 15, [ "671" ] ], [ "Guatemala", "gt", "502" ], [ "Guernsey", "gg", "44", 1, [ "1481", "7781", "7839", "7911" ] ], [ "Guinea (Guinée)", "gn", "224" ], [ "Guinea-Bissau (Guiné Bissau)", "gw", "245" ], [ "Guyana", "gy", "592" ], [ "Haiti", "ht", "509" ], [ "Honduras", "hn", "504" ], [ "Hong Kong (香港)", "hk", "852" ], [ "Hungary (Magyarország)", "hu", "36" ], [ "Iceland (Ísland)", "is", "354" ], [ "India (भारत)", "in", "91" ], [ "Indonesia", "id", "62" ], [ "Iran (‫ایران‬‎)", "ir", "98" ], [ "Iraq (‫العراق‬‎)", "iq", "964" ], [ "Ireland", "ie", "353" ], [ "Isle of Man", "im", "44", 2, [ "1624", "74576", "7524", "7924", "7624" ] ], [ "Israel (‫ישראל‬‎)", "il", "972" ], [ "Italy (Italia)", "it", "39", 0 ], [ "Jamaica", "jm", "1", 4, [ "876", "658" ] ], [ "Japan (日本)", "jp", "81" ], [ "Jersey", "je", "44", 3, [ "1534", "7509", "7700", "7797", "7829", "7937" ] ], [ "Jordan (‫الأردن‬‎)", "jo", "962" ], [ "Kazakhstan (Казахстан)", "kz", "7", 1, [ "33", "7" ] ], [ "Kenya", "ke", "254" ], [ "Kiribati", "ki", "686" ], [ "Kosovo", "xk", "383" ], [ "Kuwait (‫الكويت‬‎)", "kw", "965" ], [ "Kyrgyzstan (Кыргызстан)", "kg", "996" ], [ "Laos (ລາວ)", "la", "856" ], [ "Latvia (Latvija)", "lv", "371" ], [ "Lebanon (‫لبنان‬‎)", "lb", "961" ], [ "Lesotho", "ls", "266" ], [ "Liberia", "lr", "231" ], [ "Libya (‫ليبيا‬‎)", "ly", "218" ], [ "Liechtenstein", "li", "423" ], [ "Lithuania (Lietuva)", "lt", "370" ], [ "Luxembourg", "lu", "352" ], [ "Macau (澳門)", "mo", "853" ], [ "Macedonia (FYROM) (Македонија)", "mk", "389" ], [ "Madagascar (Madagasikara)", "mg", "261" ], [ "Malawi", "mw", "265" ], [ "Malaysia", "my", "60" ], [ "Maldives", "mv", "960" ], [ "Mali", "ml", "223" ], [ "Malta", "mt", "356" ], [ "Marshall Islands", "mh", "692" ], [ "Martinique", "mq", "596" ], [ "Mauritania (‫موريتانيا‬‎)", "mr", "222" ], [ "Mauritius (Moris)", "mu", "230" ], [ "Mayotte", "yt", "262", 1, [ "269", "639" ] ], [ "Mexico (México)", "mx", "52" ], [ "Micronesia", "fm", "691" ], [ "Moldova (Republica Moldova)", "md", "373" ], [ "Monaco", "mc", "377" ], [ "Mongolia (Монгол)", "mn", "976" ], [ "Montenegro (Crna Gora)", "me", "382" ], [ "Montserrat", "ms", "1", 16, [ "664" ] ], [ "Morocco (‫المغرب‬‎)", "ma", "212", 0 ], [ "Mozambique (Moçambique)", "mz", "258" ], [ "Myanmar (Burma) (မြန်မာ)", "mm", "95" ], [ "Namibia (Namibië)", "na", "264" ], [ "Nauru", "nr", "674" ], [ "Nepal (नेपाल)", "np", "977" ], [ "Netherlands (Nederland)", "nl", "31" ], [ "New Caledonia (Nouvelle-Calédonie)", "nc", "687" ], [ "New Zealand", "nz", "64" ], [ "Nicaragua", "ni", "505" ], [ "Niger (Nijar)", "ne", "227" ], [ "Nigeria", "ng", "234" ], [ "Niue", "nu", "683" ], [ "Norfolk Island", "nf", "672" ], [ "North Korea (조선 민주주의 인민 공화국)", "kp", "850" ], [ "Northern Mariana Islands", "mp", "1", 17, [ "670" ] ], [ "Norway (Norge)", "no", "47", 0 ], [ "Oman (‫عُمان‬‎)", "om", "968" ], [ "Pakistan (‫پاکستان‬‎)", "pk", "92" ], [ "Palau", "pw", "680" ], [ "Palestine (‫فلسطين‬‎)", "ps", "970" ], [ "Panama (Panamá)", "pa", "507" ], [ "Papua New Guinea", "pg", "675" ], [ "Paraguay", "py", "595" ], [ "Peru (Perú)", "pe", "51" ], [ "Philippines", "ph", "63" ], [ "Poland (Polska)", "pl", "48" ], [ "Portugal", "pt", "351" ], [ "Puerto Rico", "pr", "1", 3, [ "787", "939" ] ], [ "Qatar (‫قطر‬‎)", "qa", "974" ], [ "Réunion (La Réunion)", "re", "262", 0 ], [ "Romania (România)", "ro", "40" ], [ "Russia (Россия)", "ru", "7", 0 ], [ "Rwanda", "rw", "250" ], [ "Saint Barthélemy", "bl", "590", 1 ], [ "Saint Helena", "sh", "290" ], [ "Saint Kitts and Nevis", "kn", "1", 18, [ "869" ] ], [ "Saint Lucia", "lc", "1", 19, [ "758" ] ], [ "Saint Martin (Saint-Martin (partie française))", "mf", "590", 2 ], [ "Saint Pierre and Miquelon (Saint-Pierre-et-Miquelon)", "pm", "508" ], [ "Saint Vincent and the Grenadines", "vc", "1", 20, [ "784" ] ], [ "Samoa", "ws", "685" ], [ "San Marino", "sm", "378" ], [ "São Tomé and Príncipe (São Tomé e Príncipe)", "st", "239" ], [ "Saudi Arabia (‫المملكة العربية السعودية‬‎)", "sa", "966" ], [ "Senegal (Sénégal)", "sn", "221" ], [ "Serbia (Србија)", "rs", "381" ], [ "Seychelles", "sc", "248" ], [ "Sierra Leone", "sl", "232" ], [ "Singapore", "sg", "65" ], [ "Sint Maarten", "sx", "1", 21, [ "721" ] ], [ "Slovakia (Slovensko)", "sk", "421" ], [ "Slovenia (Slovenija)", "si", "386" ], [ "Solomon Islands", "sb", "677" ], [ "Somalia (Soomaaliya)", "so", "252" ], [ "South Africa", "za", "27" ], [ "South Korea (대한민국)", "kr", "82" ], [ "South Sudan (‫جنوب السودان‬‎)", "ss", "211" ], [ "Spain (España)", "es", "34" ], [ "Sri Lanka (ශ්‍රී ලංකාව)", "lk", "94" ], [ "Sudan (‫السودان‬‎)", "sd", "249" ], [ "Suriname", "sr", "597" ], [ "Svalbard and Jan Mayen", "sj", "47", 1, [ "79" ] ], [ "Swaziland", "sz", "268" ], [ "Sweden (Sverige)", "se", "46" ], [ "Switzerland (Schweiz)", "ch", "41" ], [ "Syria (‫سوريا‬‎)", "sy", "963" ], [ "Taiwan (台灣)", "tw", "886" ], [ "Tajikistan", "tj", "992" ], [ "Tanzania", "tz", "255" ], [ "Thailand (ไทย)", "th", "66" ], [ "Timor-Leste", "tl", "670" ], [ "Togo", "tg", "228" ], [ "Tokelau", "tk", "690" ], [ "Tonga", "to", "676" ], [ "Trinidad and Tobago", "tt", "1", 22, [ "868" ] ], [ "Tunisia (‫تونس‬‎)", "tn", "216" ], [ "Turkey (Türkiye)", "tr", "90" ], [ "Turkmenistan", "tm", "993" ], [ "Turks and Caicos Islands", "tc", "1", 23, [ "649" ] ], [ "Tuvalu", "tv", "688" ], [ "U.S. Virgin Islands", "vi", "1", 24, [ "340" ] ], [ "Uganda", "ug", "256" ], [ "Ukraine (Україна)", "ua", "380" ], [ "United Arab Emirates (‫الإمارات العربية المتحدة‬‎)", "ae", "971" ], [ "United Kingdom", "gb", "44", 0 ], [ "United States", "us", "1", 0 ], [ "Uruguay", "uy", "598" ], [ "Uzbekistan (Oʻzbekiston)", "uz", "998" ], [ "Vanuatu", "vu", "678" ], [ "Vatican City (Città del Vaticano)", "va", "39", 1, [ "06698" ] ], [ "Venezuela", "ve", "58" ], [ "Vietnam (Việt Nam)", "vn", "84" ], [ "Wallis and Futuna (Wallis-et-Futuna)", "wf", "681" ], [ "Western Sahara (‫الصحراء الغربية‬‎)", "eh", "212", 1, [ "5288", "5289" ] ], [ "Yemen (‫اليمن‬‎)", "ye", "967" ], [ "Zambia", "zm", "260" ], [ "Zimbabwe", "zw", "263" ], [ "Åland Islands", "ax", "358", 1, [ "18" ] ] ];
+    // loop over all of the countries above, restructuring the data to be objects with named keys
     for (var i = 0; i < allCountries.length; i++) {
         var c = allCountries[i];
         allCountries[i] = {
