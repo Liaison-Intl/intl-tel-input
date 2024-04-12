@@ -4,20 +4,19 @@ describe("dropdownContainer:", function() {
 
   beforeEach(function() {
     intlSetup();
-    // insert input into the DOM so our visibility tests will work
+    //* Insert input into the DOM so our visibility tests will work.
     input = $("<input>").appendTo("body");
   });
 
   afterEach(function() {
-    input.intlTelInput("destroy").remove();
-    input = null;
+    intlTeardown();
   });
 
-  describe("init plugin with dropdownContainer=''", function() {
+  describe("init plugin with dropdownContainer=null", function() {
 
     beforeEach(function() {
-      input.intlTelInput({
-        dropdownContainer: ""
+      iti = window.intlTelInput(input[0], {
+        dropdownContainer: null,
       });
     });
 
@@ -28,7 +27,7 @@ describe("dropdownContainer:", function() {
     describe("clicking the selected flag", function() {
 
       beforeEach(function() {
-        getSelectedFlagContainer().click();
+        getSelectedCountryContainer().click();
       });
 
       it("shows the dropdown", function() {
@@ -37,6 +36,7 @@ describe("dropdownContainer:", function() {
 
       it("clicking-off removes the markup again", function() {
         $("body").click();
+
         expect(getListElement()).not.toBeVisible();
       });
 
@@ -44,38 +44,38 @@ describe("dropdownContainer:", function() {
 
   });
 
-  describe("init plugin with dropdownContainer='body'", function() {
-
-    var selector = "body";
+  describe("init plugin with dropdownContainer=document.body", function() {
 
     beforeEach(function() {
-      input.intlTelInput({
-        dropdownContainer: selector
+      iti = window.intlTelInput(input[0], {
+        dropdownContainer: document.body,
       });
     });
 
-    it("doesnt immediately add the markup to that element", function() {
-      expect($(selector+">.iti-container")).not.toExist();
+    it("doesn't immediately add the markup to the DOM", function() {
+      expect($(".iti--container")).not.toExist();
     });
 
     describe("triggering the dropdown", function() {
 
       beforeEach(function() {
-        getSelectedFlagContainer().click();
+        getSelectedCountryContainer().click();
       });
 
       it("adds the markup to that element and makes it visible in the document", function() {
-        expect($(selector+">.iti-container")).toBeVisible();
+        expect($("body>.iti--container")).toBeVisible();
       });
 
       it("selecting a country removes the markup again", function() {
-        $(selector+">.iti-container").find("li[data-country-code='gb']").click();
-        expect($(selector+">.iti-container")).not.toExist();
+        $("body>.iti--container").find("li[data-country-code='gb']").click();
+
+        expect($("body>.iti--container")).not.toExist();
       });
 
       it("clicking-off removes the markup again", function() {
         $("body").click();
-        expect($(selector+">.iti-container")).not.toExist();
+
+        expect($("body>.iti--container")).not.toExist();
       });
 
     });

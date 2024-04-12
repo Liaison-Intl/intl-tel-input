@@ -8,8 +8,7 @@ describe("nationalMode:", function() {
   });
 
   afterEach(function() {
-    input.intlTelInput("destroy").remove();
-    input = null;
+    intlTeardown();
   });
 
 
@@ -17,10 +16,10 @@ describe("nationalMode:", function() {
   describe("init plugin with no value", function() {
 
     beforeEach(function() {
-      // must be in DOM for focus to work
+      //* Must be in DOM for focus to work.
       input = $("<input>").appendTo("body");
-      input.intlTelInput({
-        nationalMode: true
+      iti = window.intlTelInput(input[0], {
+        nationalMode: true,
       });
     });
 
@@ -29,12 +28,14 @@ describe("nationalMode:", function() {
     });
 
     it("focusing the input does not insert the dial code", function() {
-      input.focus();
+      triggerInputEvent("focus");
+
       expect(getInputVal()).toEqual("");
     });
 
     it("selecting another country does not insert the dial code", function() {
-      selectFlag("gb");
+      selectCountry("gb");
+
       expect(getInputVal()).toEqual("");
     });
 
@@ -42,7 +43,8 @@ describe("nationalMode:", function() {
       input.val("+");
       triggerKeyOnInput("4");
       triggerKeyOnInput("4");
-      expect(getSelectedFlagElement()).toHaveClass("gb");
+
+      expect(getSelectedCountryElement()).toHaveClass("iti__gb");
     });
 
   });
@@ -55,21 +57,22 @@ describe("nationalMode:", function() {
 
     beforeEach(function() {
       input = $("<input value='" + nationalNum + "'>");
-      input.intlTelInput({
-        nationalMode: true
+      iti = window.intlTelInput(input[0], {
+        nationalMode: true,
       });
-      input.intlTelInput("setCountry", "us");
+      iti.setCountry("us");
     });
 
     it("displays the number and has US flag selected", function() {
       expect(getInputVal()).toEqual(nationalNum);
-      expect(getSelectedFlagElement()).toHaveClass("us");
+      expect(getSelectedCountryElement()).toHaveClass("iti__us");
     });
 
     it("changing to canadian area code updates flag", function() {
       input.val("204 555 555");
-      triggerKeyOnInput("5"); // trigger update flag
-      expect(getSelectedFlagElement()).toHaveClass("ca");
+      triggerKeyOnInput("5"); //* Trigger update flag.
+
+      expect(getSelectedCountryElement()).toHaveClass("iti__ca");
     });
 
   });
@@ -82,20 +85,21 @@ describe("nationalMode:", function() {
 
     beforeEach(function() {
       input = $("<input value='" + intlNumber + "'>");
-      input.intlTelInput({
-        nationalMode: true
+      iti = window.intlTelInput(input[0], {
+        nationalMode: true,
       });
     });
 
     it("displays the number and selects the right flag", function() {
       expect(getInputVal()).toEqual(intlNumber);
-      expect(getSelectedFlagElement()).toHaveClass("gb");
+      expect(getSelectedCountryElement()).toHaveClass("iti__gb");
     });
 
     it("changing to another intl number updates the flag", function() {
       input.val("+34 5555555");
-      triggerKeyOnInput("5"); // trigger update flag
-      expect(getSelectedFlagElement()).toHaveClass("es");
+      triggerKeyOnInput("5"); //* Trigger update flag.
+
+      expect(getSelectedCountryElement()).toHaveClass("iti__es");
     });
 
   });

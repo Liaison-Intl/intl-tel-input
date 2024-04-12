@@ -7,8 +7,7 @@ describe("initial values:", function() {
   });
 
   afterEach(function() {
-    input.intlTelInput("destroy");
-    input = null;
+    intlTeardown();
   });
 
 
@@ -16,24 +15,20 @@ describe("initial values:", function() {
   describe("init vanilla plugin on empty input", function() {
 
     beforeEach(function() {
-      input = $("<input>");
-      input.intlTelInput();
+      input = $("<input>").wrap("div");
+      iti = window.intlTelInput(input[0]);
     });
 
     it("creates a container with the right class", function() {
-      expect(getParentElement()).toHaveClass("intl-tel-input");
+      expect(getParentElement()).toHaveClass("iti");
     });
 
     it("has the right number of list items", function() {
-      expect(getListLength()).toEqual(totalCountries + defaultPreferredCountries);
-      expect(getPreferredCountriesLength()).toEqual(defaultPreferredCountries);
-      // only 1 active list item
-      expect(getActiveListItem().length).toEqual(1);
+      expect(getListLength()).toEqual(totalCountries);
     });
 
-    it("sets the state correctly: selected flag and active list item", function() {
-      expect(getSelectedFlagElement()).toHaveClass("us");
-      expect(getActiveListItem().attr("data-country-code")).toEqual("us");
+    it("sets the state correctly: no selected flag", function() {
+      expect(getSelectedCountryElement()).toHaveClass("iti__globe");
     });
 
   });
@@ -44,27 +39,80 @@ describe("initial values:", function() {
 
     beforeEach(function() {
       input = $("<input value='+44 12345'>");
-      input.intlTelInput();
+      iti = window.intlTelInput(input[0]);
     });
 
-    it("sets the state correctly: selected flag and active list item", function() {
-      expect(getSelectedFlagElement()).toHaveClass("gb");
-      expect(getActiveListItem().attr("data-country-code")).toEqual("gb");
+    it("sets the state correctly: selected flag", function() {
+      expect(getSelectedCountryElement()).toHaveClass("iti__gb");
     });
 
   });
 
 
-  describe("init vanilla plugin on input containing number invalid dial code", function() {
+
+  describe("input containing valid regionless NANP number with intl dial code", function() {
+
+    beforeEach(function() {
+      input = $("<input value='+1 800 123 1234'>");
+    });
+
+    describe("init plugin with nationalMode enabled", function() {
+
+      beforeEach(function() {
+        iti = window.intlTelInput(input[0]);
+      });
+
+      it("defaults to US flag", function() {
+        expect(getSelectedCountryElement()).toHaveClass("iti__us");
+      });
+
+    });
+
+    describe("init plugin with nationalMode enabled and an initialCountry", function() {
+
+      var initialCountry = "ca";
+
+      beforeEach(function() {
+        iti = window.intlTelInput(input[0], {
+          initialCountry: initialCountry,
+        });
+      });
+
+      it("defaults to the initialCountry flag", function() {
+        expect(getSelectedCountryElement()).toHaveClass(`iti__${initialCountry}`);
+      });
+
+    });
+
+  });
+
+
+
+  describe("init vanilla plugin on input containing valid Cook Island number with intl dial code", function() {
+
+    beforeEach(function() {
+      input = $("<input value='+682 21 234'>");
+      iti = window.intlTelInput(input[0]);
+    });
+
+    //* Issue 520.
+    it("sets the selected flag correctly", function() {
+      expect(getSelectedCountryElement()).toHaveClass("iti__ck");
+    });
+
+  });
+
+
+
+  describe("init vanilla plugin on input containing number with invalid dial code", function() {
 
     beforeEach(function() {
       input = $("<input value='+969999'>");
-      input.intlTelInput();
+      iti = window.intlTelInput(input[0]);
     });
 
-    it("does not set the selected flag or the active list item", function() {
-      expect(getSelectedFlagElement().attr("class")).toBe("iti-flag");
-      expect(getActiveListItem().length).toEqual(0);
+    it("does not set the selected flag", function() {
+      expect(getSelectedCountryElement().attr("class")).toBe("iti__flag iti__globe");
     });
 
   });
@@ -75,12 +123,11 @@ describe("initial values:", function() {
 
     beforeEach(function() {
       input = $("<input value='8'>");
-      input.intlTelInput();
+      iti = window.intlTelInput(input[0]);
     });
 
-    it("does not set the selected flag or the active list item", function() {
-      expect(getSelectedFlagElement().attr("class")).toBe("iti-flag");
-      expect(getActiveListItem().length).toEqual(0);
+    it("does not set the selected flag", function() {
+      expect(getSelectedCountryElement().attr("class")).toBe("iti__flag iti__globe");
     });
 
   });

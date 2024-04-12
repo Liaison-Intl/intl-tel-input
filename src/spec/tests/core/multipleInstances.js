@@ -3,34 +3,35 @@
 describe("multiple instances: init plugin (with nationalMode=false) to test multiple instances", function() {
 
   var input2,
-    afghanistanCountryCode = "af",
-    albaniaCountryCode = "al",
-    chinaCountryCode = "cn",
-    chinaDialCode = "+86";
+    iti2,
+    afghanistanIso2Code = "af",
+    albaniaIso2Code = "al",
+    chinaIso2Code = "cn",
+    chinaDialCode = "+86",
+    koreaIso2Code = "kr",
+    russiaIso2Code = "ru";
 
   beforeEach(function() {
     intlSetup();
-    input = $("<input>");
-    input2 = $("<input>");
-    // japan and china
-    input.intlTelInput({
-      onlyCountries: [chinaCountryCode, afghanistanCountryCode],
-      nationalMode: false
+    input = $("<input>").wrap("div");
+    input2 = $("<input>").wrap("div");
+
+    iti = window.intlTelInput(input[0], {
+      onlyCountries: [afghanistanIso2Code, chinaIso2Code],
+      nationalMode: false,
     });
-    // korea, china and russia
-    input2.intlTelInput({
-      onlyCountries: ['kr', chinaCountryCode, 'ru', albaniaCountryCode],
-      nationalMode: false
+    iti2 = window.intlTelInput(input2[0], {
+      onlyCountries: [albaniaIso2Code, chinaIso2Code, koreaIso2Code, russiaIso2Code],
+      nationalMode: false,
     });
     $("body").append(getParentElement(input)).append(getParentElement(input2));
   });
 
   afterEach(function() {
-    getParentElement(input).remove();
-    getParentElement(input2).remove();
-    input.intlTelInput("destroy");
-    input2.intlTelInput("destroy");
-    input = input2 = null;
+    intlTeardown();
+    iti2.destroy();
+    input2.remove();
+    input2 = iti2 = null;
   });
 
   it("instances have different country lists", function() {
@@ -38,22 +39,19 @@ describe("multiple instances: init plugin (with nationalMode=false) to test mult
     expect(getListLength(input2)).toEqual(4);
   });
 
-  it("instances have different default countries selected", function() {
-    expect(getSelectedFlagElement()).toHaveClass(afghanistanCountryCode);
-    expect(getSelectedFlagElement(input2)).toHaveClass(albaniaCountryCode);
-  });
-
   it("selecting an item from the first input dropdown only updates the flag on that input", function() {
-    selectFlag(chinaCountryCode);
-    expect(getInputVal()).toEqual(chinaDialCode);
-    expect(getInputVal(input2)).toEqual("");
+    selectCountry(chinaIso2Code);
+
+    expect(getSelectedCountryElement()).toHaveClass(`iti__${chinaIso2Code}`);
+    expect(getSelectedCountryElement(input2)).toHaveClass("iti__globe");
   });
 
   it("updating the number on the first input only updates the flag on that input", function() {
     input.val(chinaDialCode + " 123456");
     triggerKeyOnInput(" ");
-    expect(getSelectedFlagElement()).toHaveClass(chinaCountryCode);
-    expect(getSelectedFlagElement(input2)).toHaveClass(albaniaCountryCode);
+
+    expect(getSelectedCountryElement()).toHaveClass(`iti__${chinaIso2Code}`);
+    expect(getSelectedCountryElement(input2)).toHaveClass("iti__globe");
   });
 
 
@@ -61,7 +59,7 @@ describe("multiple instances: init plugin (with nationalMode=false) to test mult
   describe("clicking open dropdown on the first input", function() {
 
     beforeEach(function() {
-      getSelectedFlagContainer().click();
+      getSelectedCountryContainer()[0].click();
     });
 
     it("only opens the dropdown on that input", function() {
@@ -70,7 +68,8 @@ describe("multiple instances: init plugin (with nationalMode=false) to test mult
     });
 
     it("then clicking open dropdown on the second will close the first and open the second", function() {
-      getSelectedFlagContainer(input2).click();
+      getSelectedCountryContainer(input2)[0].click();
+
       expect(getListElement()).not.toBeVisible();
       expect(getListElement(input2)).toBeVisible();
     });

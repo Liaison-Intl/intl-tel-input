@@ -4,38 +4,40 @@ describe("autoPlaceholder: testing input with no placeholder", function() {
 
   beforeEach(function() {
     intlSetup(true);
-    input = $("<input>");
+    input = $("<input>").wrap("div");
   });
 
   afterEach(function() {
-    input.intlTelInput("destroy");
-    input = null;
+    intlTeardown();
   });
 
-  it("init plugin with autoPlaceholder=false leaves the placeholder empty", function() {
-    input.intlTelInput({
-      autoPlaceholder: false
+  it("init plugin with autoPlaceholder=off leaves the placeholder empty", function() {
+    iti = window.intlTelInput(input[0], {
+      autoPlaceholder: "off",
+      initialCountry: "af",
     });
+
     expect(input.attr("placeholder")).toBeUndefined();
   });
 
-  describe("init plugin with autoPlaceholder=true and nationalMode=true", function() {
+  describe("init plugin with autoPlaceholder=polite and nationalMode=true", function() {
 
     beforeEach(function() {
-      input.intlTelInput({
-        autoPlaceholder: true,
-        nationalMode: true
+      iti = window.intlTelInput(input[0], {
+        autoPlaceholder: "polite",
+        nationalMode: true,
+        initialCountry: "af",
       });
     });
 
-    it("sets the placeholder to an example national number for the US", function() {
-      expect(input.attr("placeholder")).toEqual("(201) 555-5555");
+    it("sets the placeholder to an example national number for Afghanistan", function() {
+      expect(input.attr("placeholder")).toEqual("070 123 4567");
     });
 
     describe("changing the country to the UK", function() {
 
       beforeEach(function() {
-        selectFlag("gb");
+        selectCountry("gb");
       });
 
       it("updates the placeholder to an example national number for the UK", function() {
@@ -46,23 +48,24 @@ describe("autoPlaceholder: testing input with no placeholder", function() {
 
   });
 
-  describe("init plugin with autoPlaceholder=true and nationalMode=false", function() {
+  describe("init plugin with autoPlaceholder=polite and nationalMode=false", function() {
 
     beforeEach(function() {
-      input.intlTelInput({
-        autoPlaceholder: true,
-        nationalMode: false
+      iti = window.intlTelInput(input[0], {
+        autoPlaceholder: "polite",
+        nationalMode: false,
+        initialCountry: "af",
       });
     });
 
-    it("sets the placeholder to an example international number for the US", function() {
-      expect(input.attr("placeholder")).toEqual("+1 201-555-5555");
+    it("sets the placeholder to an example international number for Afghanistan", function() {
+      expect(input.attr("placeholder")).toEqual("+93 70 123 4567");
     });
 
     describe("changing the country to the UK", function() {
 
       beforeEach(function() {
-        selectFlag("gb");
+        selectCountry("gb");
       });
 
       it("updates the placeholder to an example national number for the UK", function() {
@@ -78,14 +81,6 @@ describe("autoPlaceholder: testing input with no placeholder", function() {
 
 
 
-
-
-
-
-
-
-
-
 describe("autoPlaceholder: testing input with an initial placeholder", function() {
 
   var placeholder = "lol";
@@ -96,22 +91,34 @@ describe("autoPlaceholder: testing input with an initial placeholder", function(
   });
 
   afterEach(function() {
-    input.intlTelInput("destroy");
-    input = null;
+    intlTeardown();
   });
 
-  it("init plugin with autoPlaceholder=false leaves the placeholder the same", function() {
-    input.intlTelInput({
-      autoPlaceholder: false
+  it("init plugin with autoPlaceholder=off leaves the placeholder the same", function() {
+    iti = window.intlTelInput(input[0], {
+      autoPlaceholder: "off",
+      initialCountry: "af",
     });
+
     expect(input.attr("placeholder")).toEqual(placeholder);
   });
 
-  it("init plugin with autoPlaceholder=true leaves the placeholder the same", function() {
-    input.intlTelInput({
-      autoPlaceholder: true
+  it("init plugin with autoPlaceholder=polite leaves the placeholder the same", function() {
+    iti = window.intlTelInput(input[0], {
+      autoPlaceholder: "polite",
+      initialCountry: "af",
     });
+
     expect(input.attr("placeholder")).toEqual(placeholder);
+  });
+
+  it("init plugin with autoPlaceholder=aggressive overwrites the placeholder", function() {
+    iti = window.intlTelInput(input[0], {
+      autoPlaceholder: "aggressive",
+      initialCountry: "af",
+    });
+
+    expect(input.attr("placeholder")).toEqual("070 123 4567");
   });
 
 });

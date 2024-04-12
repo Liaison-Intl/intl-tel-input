@@ -1,173 +1,215 @@
-/**
- * Follow instructions here to compile this file:
- * https://github.com/googlei18n/libphonenumber/blob/master/javascript/README.md
- *
- * Once setup, to re-compile:
- * 1) Copy the contents of this file into libphonenumber/javascript/i18n/phonenumbers/demo.js
- * 2) ant -f libphonenumber/javascript/build.xml compile-demo
- * 3) Copy libphonenumber/javascript/i18n/phonenumbers/demo-compiled.js to intl-tel-input/build/js/utils.js
- */
-
+goog.provide("i18n.phonenumbers.demo");
 // includes
-goog.require('i18n.phonenumbers.PhoneNumberFormat');
-goog.require('i18n.phonenumbers.PhoneNumberUtil');
+goog.require("i18n.phonenumbers.PhoneNumberFormat");
+goog.require("i18n.phonenumbers.PhoneNumberUtil");
+goog.require("i18n.phonenumbers.Error");
+goog.require("i18n.phonenumbers.AsYouTypeFormatter");
 
-
-// format the given number to the given format
-function formatNumber(number, countryCode, format) {
+//* Format the number as the user types.
+const formatNumberAsYouType = (number, countryCode) => {
   try {
-    var phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
-    var numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
-    format = (typeof format == "undefined") ? i18n.phonenumbers.PhoneNumberFormat.E164 : format;
-    return phoneUtil.format(numberObj, format);
+    //* Have to clean it first, as AYTF stops formatting as soon as it hits any formatting char (even it's own)
+    //* (it's designed to be fed one char at a time, as opposed to every char every time).
+    const clean = number.replace(/[^+0-9]/g, "");
+    const formatter = new i18n.phonenumbers.AsYouTypeFormatter(countryCode);
+    let result = "";
+    for (let i = 0; i < clean.length; i++) {
+      result = formatter.inputDigit(clean.charAt(i));
+    }
+    return result;
   } catch (e) {
     return number;
   }
-}
+};
 
-
-// get an example number for the given country code
-function getExampleNumber(countryCode, national, numberType) {
+//* Format the given number to the given format.
+const formatNumber = (number, countryCode, formatArg) => {
   try {
-    var phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
-    var numberObj = phoneUtil.getExampleNumberForType(countryCode, numberType);
-    var format = (national) ? i18n.phonenumbers.PhoneNumberFormat.NATIONAL : i18n.phonenumbers.PhoneNumberFormat.INTERNATIONAL;
+    const phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+    const numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
+    if (phoneUtil.isPossibleNumber(numberObj)) {
+      const format =
+        typeof formatArg === "undefined"
+          ? i18n.phonenumbers.PhoneNumberFormat.E164
+          : formatArg;
+      return phoneUtil.format(numberObj, format);
+    }
+    return number;
+  } catch (e) {
+    return number;
+  }
+};
+
+//* Get an example number for the given country code.
+const getExampleNumber = (countryCode, national, numberType, useE164) => {
+  try {
+    const phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+    const numberObj = phoneUtil.getExampleNumberForType(
+      countryCode,
+      numberType,
+    );
+    let format;
+    if (useE164) {
+      format = i18n.phonenumbers.PhoneNumberFormat.E164;
+    } else {
+      format = national
+        ? i18n.phonenumbers.PhoneNumberFormat.NATIONAL
+        : i18n.phonenumbers.PhoneNumberFormat.INTERNATIONAL;
+    }
     return phoneUtil.format(numberObj, format);
   } catch (e) {
     return "";
   }
-}
+};
 
-
-// get the extension from the given number
-function getExtension(number, countryCode) {
+//* Get the core number, without any international dial code, or national prefix.
+const getCoreNumber = (number, countryCode) => {
   try {
-    var phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
-    var numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
+    const phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+    const numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
+    return numberObj.getNationalNumber().toString();
+  } catch (e) {
+    return "";
+  }
+};
+
+//* Get the extension from the given number
+const getExtension = (number, countryCode) => {
+  try {
+    const phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+    const numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
     return numberObj.getExtension();
   } catch (e) {
     return "";
   }
-}
+};
 
-
-// get the type of the given number e.g. fixed-line/mobile
-function getNumberType(number, countryCode) {
+//* Get the type of the given number e.g. fixed-line/mobile.
+const getNumberType = (number, countryCode) => {
   try {
-    var phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
-    var numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
+    const phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+    const numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
     return phoneUtil.getNumberType(numberObj);
   } catch (e) {
-    // broken
+    //* Broken
     return -99;
   }
-}
+};
 
-
-// get more info if the validation has failed e.g. too long/too short
-function getValidationError(number, countryCode) {
+//* Get more info if the validation has failed e.g. too long/too short.
+//* NOTE that isPossibleNumberWithReason returns a i18n.phonenumbers.PhoneNumberUtil.ValidationResult.
+const getValidationError = (number, countryCode) => {
   try {
-    var phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
-    var numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
+    const phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+    const numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
     return phoneUtil.isPossibleNumberWithReason(numberObj);
   } catch (e) {
-    //console.log(e);
-
-    // here I convert thrown errors into ValidationResult enums (if possible)
-    if (e == i18n.phonenumbers.Error.INVALID_COUNTRY_CODE) {
-      return i18n.phonenumbers.PhoneNumberUtil.ValidationResult.INVALID_COUNTRY_CODE;
+    //* Here I convert thrown errors into ValidationResult enums (if possible).
+    //* errors are from i18n.phonenumbers.Error in the file https://github.com/googlei18n/libphonenumber/blob/master/javascript/i18n/phonenumbers/phonenumberutil.js.
+    if (e.message === i18n.phonenumbers.Error.INVALID_COUNTRY_CODE) {
+      return i18n.phonenumbers.PhoneNumberUtil.ValidationResult
+        .INVALID_COUNTRY_CODE;
     }
-    if (e == i18n.phonenumbers.Error.NOT_A_NUMBER) {
-      return 4;
-    }
-    if (e == i18n.phonenumbers.Error.TOO_SHORT_AFTER_IDD || e == i18n.phonenumbers.Error.TOO_SHORT_NSN) {
+    if (
+      //* Hack to solve issue where parseAndKeepRawInput throws weird error for zero or 1-digit (national) numbers e.g. "3" or "+13" s
+      number.length <= 3 ||
+      e.message === i18n.phonenumbers.Error.TOO_SHORT_AFTER_IDD ||
+      e.message === i18n.phonenumbers.Error.TOO_SHORT_NSN
+    ) {
       return i18n.phonenumbers.PhoneNumberUtil.ValidationResult.TOO_SHORT;
     }
-    if (e == i18n.phonenumbers.Error.TOO_LONG) {
+    if (e.message === i18n.phonenumbers.Error.TOO_LONG) {
       return i18n.phonenumbers.PhoneNumberUtil.ValidationResult.TOO_LONG;
     }
 
-    // broken
+    //* Broken
     return -99;
   }
-}
+};
 
-
-// check if given number is valid
-function isValidNumber(number, countryCode) {
+//* Check if given number is valid.
+const isValidNumber = (number, countryCode) => {
   try {
-    var phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
-    var numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
+    const phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+    const numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
     return phoneUtil.isValidNumber(numberObj);
   } catch (e) {
     return false;
   }
-}
+};
 
+//* Check if given number is possible.
+const isPossibleNumber = (number, countryCode, mobileOnly) => {
+  try {
+    const phoneUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+    const numberObj = phoneUtil.parseAndKeepRawInput(number, countryCode);
 
-// copied this from https://github.com/googlei18n/libphonenumber/blob/master/javascript/i18n/phonenumbers/phonenumberutil.js#L883
-var numberFormat = {
+    if (mobileOnly) {
+      const resultMobile = phoneUtil.isPossibleNumberForTypeWithReason(numberObj, i18n.phonenumbers.PhoneNumberType.MOBILE);
+      const isPossibleMobile = resultMobile === i18n.phonenumbers.PhoneNumberUtil.ValidationResult.IS_POSSIBLE;
+      return isPossibleMobile;
+    }
+
+    //* Can't use phoneUtil.isPossibleNumber directly as it accepts IS_POSSIBLE_LOCAL_ONLY numbers e.g. local numbers that are much shorter.
+    const result = phoneUtil.isPossibleNumberWithReason(numberObj);
+    const isPossible = result === i18n.phonenumbers.PhoneNumberUtil.ValidationResult.IS_POSSIBLE;
+    return isPossible;
+  } catch (e) {
+    return false;
+  }
+};
+
+/********************
+ * NOTE: for following sections, keys must be in quotes to force closure compiler to preserve them
+ ********************/
+
+//* copied this from i18n.phonenumbers.PhoneNumberFormat in the file https://github.com/googlei18n/libphonenumber/blob/master/javascript/i18n/phonenumbers/phonenumberutil.js.
+const numberFormat = {
   "E164": 0,
   "INTERNATIONAL": 1,
   "NATIONAL": 2,
-  "RFC3966": 3
+  "RFC3966": 3,
 };
 
-
-// copied this from i18n.phonenumbers.PhoneNumberType in https://code.google.com/p/libphonenumber/source/browse/trunk/javascript/i18n/phonenumbers/phonenumberutil.js and put the keys in quotes to force closure compiler to preserve the keys
-// TODO: there must be a way to just tell closure compiler to preserve the keys on i18n.phonenumbers.PhoneNumberType and just export that
-var numberType = {
+//* copied this from i18n.phonenumbers.PhoneNumberType in https://github.com/googlei18n/libphonenumber/blob/master/javascript/i18n/phonenumbers/phonenumberutil.js and put the keys in quotes to force closure compiler to preserve the keys
+// TODO: There must be a way to just tell closure compiler to preserve the keys on i18n.phonenumbers.PhoneNumberType and just export that.
+const numberType = {
   "FIXED_LINE": 0,
   "MOBILE": 1,
-  // In some regions (e.g. the USA), it is impossible to distinguish between
-  // fixed-line and mobile numbers by looking at the phone number itself.
   "FIXED_LINE_OR_MOBILE": 2,
-  // Freephone lines
   "TOLL_FREE": 3,
   "PREMIUM_RATE": 4,
-  // The cost of this call is shared between the caller and the recipient, and
-  // is hence typically less than PREMIUM_RATE calls. See
-  // http://en.wikipedia.org/wiki/Shared_Cost_Service for more information.
   "SHARED_COST": 5,
-  // Voice over IP numbers. This includes TSoIP (Telephony Service over IP).
   "VOIP": 6,
-  // A personal number is associated with a particular person, and may be routed
-  // to either a MOBILE or FIXED_LINE number. Some more information can be found
-  // here: http://en.wikipedia.org/wiki/Personal_Numbers
   "PERSONAL_NUMBER": 7,
   "PAGER": 8,
-  // Used for 'Universal Access Numbers' or 'Company Numbers'. They may be
-  // further routed to specific offices, but allow one number to be used for a
-  // company.
   "UAN": 9,
-  // Used for 'Voice Mail Access Numbers'.
   "VOICEMAIL": 10,
-  // A phone number is of type UNKNOWN when it does not fit any of the known
-  // patterns for a specific region.
-  "UNKNOWN": -1
+  "UNKNOWN": -1,
 };
 
-
-// copied this from i18n.phonenumbers.PhoneNumberUtil.ValidationResult in https://code.google.com/p/libphonenumber/source/browse/trunk/javascript/i18n/phonenumbers/phonenumberutil.js and again put the keys in quotes.
-// Also: added NOT_A_NUMBER to match i18n.phonenumbers.Error.NOT_A_NUMBER
-var validationError = {
+//* copied this from i18n.phonenumbers.PhoneNumberUtil.ValidationResult in https://github.com/googlei18n/libphonenumber/blob/master/javascript/i18n/phonenumbers/phonenumberutil.js and again put the keys in quotes.
+const validationError = {
   "IS_POSSIBLE": 0,
   "INVALID_COUNTRY_CODE": 1,
   "TOO_SHORT": 2,
   "TOO_LONG": 3,
-  "NOT_A_NUMBER": 4
+  "IS_POSSIBLE_LOCAL_ONLY": 4,
+  "INVALID_LENGTH": 5,
 };
 
-
-// exports
-goog.exportSymbol('intlTelInputUtils', {});
-goog.exportSymbol('intlTelInputUtils.formatNumber', formatNumber);
-goog.exportSymbol('intlTelInputUtils.getExampleNumber', getExampleNumber);
-goog.exportSymbol('intlTelInputUtils.getExtension', getExtension);
-goog.exportSymbol('intlTelInputUtils.getNumberType', getNumberType);
-goog.exportSymbol('intlTelInputUtils.getValidationError', getValidationError);
-goog.exportSymbol('intlTelInputUtils.isValidNumber', isValidNumber);
-// enums
-goog.exportSymbol('intlTelInputUtils.numberFormat', numberFormat);
-goog.exportSymbol('intlTelInputUtils.numberType', numberType);
-goog.exportSymbol('intlTelInputUtils.validationError', validationError);
+//* Exports
+goog.exportSymbol("intlTelInputUtils", {});
+goog.exportSymbol("intlTelInputUtils.formatNumberAsYouType", formatNumberAsYouType);
+goog.exportSymbol("intlTelInputUtils.formatNumber", formatNumber);
+goog.exportSymbol("intlTelInputUtils.getExampleNumber", getExampleNumber);
+goog.exportSymbol("intlTelInputUtils.getExtension", getExtension);
+goog.exportSymbol("intlTelInputUtils.getNumberType", getNumberType);
+goog.exportSymbol("intlTelInputUtils.getValidationError", getValidationError);
+goog.exportSymbol("intlTelInputUtils.isValidNumber", isValidNumber);
+goog.exportSymbol("intlTelInputUtils.isPossibleNumber", isPossibleNumber);
+goog.exportSymbol("intlTelInputUtils.getCoreNumber", getCoreNumber);
+//* Enums
+goog.exportSymbol("intlTelInputUtils.numberFormat", numberFormat);
+goog.exportSymbol("intlTelInputUtils.numberType", numberType);
+goog.exportSymbol("intlTelInputUtils.validationError", validationError);
